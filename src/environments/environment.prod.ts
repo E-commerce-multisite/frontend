@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  nativePushEnabled: false,
+  nativePushEnabled: true,
   apiBaseUrl: 'https://disciplined-caring-production-e7fd.up.railway.app/api',
   vapidPublic: 'BNbFlsJ2BU9ZVnOG2XEfhF6yZOT-KFKhLDN5EIl_CuhZ2XmdDzn95x_qqpsUs0dX8vWvQDEYHvhGgV9tPm5uiwo',
   firebase: {
