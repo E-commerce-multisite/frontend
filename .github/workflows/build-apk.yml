@@ -41,6 +41,9 @@ jobs:
           FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
         run: printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build APK
         run: |
           cd android
