@@ -6,7 +6,6 @@ import { getMessaging, getToken, onMessage, MessagePayload, Messaging, deleteTok
 import { firebaseApp } from './firebase.config';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { LocalNotifications } from '@capacitor/local-notifications';
 
 export interface PushNotificationMessage {
   title: string;
@@ -29,6 +28,7 @@ export class MessageService {
   private initializationPromise: Promise<{ ok: boolean; message?: string; token?: string }> | null = null;
   private nativePushInitialized = false;
   private nativeListenersInitialized = false;
+  private nativeInitializationPromise: Promise<{ ok: boolean; message?: string; token?: string }> | null = null;
   private readonly tokenKey = 'fcm_device_token';
   public notificationCount$ = new BehaviorSubject<number>(0);
   public foregroundMessage$ = new BehaviorSubject<PushNotificationMessage | null>(null);
@@ -99,13 +99,25 @@ export class MessageService {
       return { ok: true };
     }
 
+    if (this.nativeInitializationPromise) {
+      return this.nativeInitializationPromise;
+    }
+
+    this.nativeInitializationPromise = this.initializeNativePushNotificationsInternal();
+    try {
+      return await this.nativeInitializationPromise;
+    } finally {
+      this.nativeInitializationPromise = null;
+    }
+  }
+
+  private async initializeNativePushNotificationsInternal(): Promise<{ ok: boolean; message?: string; token?: string }> {
     try {
       const permission = await PushNotifications.requestPermissions();
       if (permission.receive !== 'granted') {
         return { ok: false, message: 'Notification permission was denied.' };
       }
 
-      await this.initializeNativeNotificationDisplay();
       await this.registerNativePushListeners();
 
       const registration = await new Promise<string>((resolve, reject) => {
@@ -126,19 +138,6 @@ export class MessageService {
     }
   }
 
-  private async initializeNativeNotificationDisplay(): Promise<void> {
-    const permission = await LocalNotifications.requestPermissions();
-    if (permission.display !== 'granted') return;
-    await LocalNotifications.createChannel({
-      id: 'carshare-default',
-      name: 'CarShare notifications',
-      description: 'Booking and ride updates',
-      importance: 5,
-      sound: 'default',
-      vibration: true
-    });
-  }
-
   private async registerNativePushListeners(): Promise<void> {
     if (this.nativeListenersInitialized) return;
     this.nativeListenersInitialized = true;
@@ -146,15 +145,6 @@ export class MessageService {
       const message = this.normalizePayload(notification as any);
       this.foregroundMessage$.next(message);
       this.updateNotificationBadge();
-      LocalNotifications.schedule({
-        notifications: [{
-          id: Math.floor(Date.now() % 2147483647),
-          title: message.title,
-          body: message.body,
-          channelId: 'carshare-default',
-          extra: { route: message.route || '/' }
-        }]
-      }).catch(error => console.warn('Native notification display failed', error));
     });
     await PushNotifications.addListener('pushNotificationActionPerformed', action => {
       const route = (action.notification as any)?.data?.route || '/';
